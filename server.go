@@ -25,7 +25,7 @@ func NewFileServer(app *App) *FileServer {
 	return &FileServer{app: app}
 }
 
-// Start starts the HTTP server on an available port
+// Start starts the HTTP server on fixed port 8080
 func (fs *FileServer) Start() error {
 	if fs.running {
 		return fmt.Errorf("server is already running")
@@ -38,20 +38,18 @@ func (fs *FileServer) Start() error {
 	}
 	fs.lanIP = ip
 
-	// Find available port
-	listener, err := net.Listen("tcp", "0.0.0.0:0")
+	// Use fixed port 8080
+	listener, err := net.Listen("tcp", "0.0.0.0:8080")
 	if err != nil {
-		return fmt.Errorf("failed to find available port: %w", err)
+		return fmt.Errorf("port 8080 is unavailable (is File Bridge already running?): %w", err)
 	}
-	fs.port = listener.Addr().(*net.TCPAddr).Port
-	listener.Close()
+	fs.port = 8080
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/upload", fs.handleUploadPage)
 	mux.HandleFunc("/api/upload", fs.handleFileUpload)
 
 	fs.server = &http.Server{
-		Addr:              fmt.Sprintf("0.0.0.0:%d", fs.port),
 		Handler:           mux,
 		ReadHeaderTimeout: 10 * time.Second,
 		// No ReadTimeout to allow large file uploads
@@ -61,7 +59,7 @@ func (fs *FileServer) Start() error {
 
 	go func() {
 		log.Printf("HTTP server starting on 0.0.0.0:%d", fs.port)
-		if err := fs.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := fs.server.Serve(listener); err != nil && err != http.ErrServerClosed {
 			log.Printf("HTTP server error: %v", err)
 		}
 	}()
